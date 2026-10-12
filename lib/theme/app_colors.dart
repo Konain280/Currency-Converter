@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-const ink = Color(0xFF172A3A);
-const muted = Color(0xFF7C8A96);
-const green = Color(0xFF158B68);
-const canvas = Color(0xFFF5F8F8);
+const ink = Color(0xFF14243B);
+const muted = Color(0xFF68718A);
+const green = Color(0xFF087D5B);
+const canvas = Color(0xFFF6F8FF);
+const blue = Color(0xFF004ACB);

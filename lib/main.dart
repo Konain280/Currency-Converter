@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'navigation/main_navigation.dart';
 import 'screens/convert_screen.dart';
 import 'screens/watchlist_screen.dart';
+import 'screens/trends_screen.dart';
+import 'screens/settings_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() => runApp(const FXPulseApp());
@@ -19,6 +22,8 @@ class FXPulseApp extends StatelessWidget {
       '/': (context) => const MainNavigation(),
       '/convert': (context) => const ConvertScreen(),
       '/watchlist': (context) => const WatchlistScreen(),
+      '/trends': (context) => const TrendsScreen(),
+      '/settings': (context) => const SettingsScreen(),
     },
   );
 }
