@@ -11,7 +11,20 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool offline = true, refresh = true, haptics = true;
+  bool _syncing = false;
+  String _cacheSize = '142 KB';
   String base = 'USD', expiry = 'Every 6 hours', precision = '4 (0.0000)';
+  Future<void> _forceSync() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cached rates fetched successfully')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -67,11 +80,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: double.infinity,
                 height: 44,
                 child: FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.sync_rounded, size: 16),
-                  label: const Text(
-                    'Force API Sync Now',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  onPressed: _syncing ? null : _forceSync,
+                  icon: _syncing
+                      ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Icon(Icons.sync_rounded, size: 16),
+                  label: Text(
+                    _syncing ? 'Fetching Cached Rates…' : 'Force API Sync Now',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: blue,
@@ -138,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _stat('Storage Footprint', '142 KB')),
+                  Expanded(child: _stat('Storage Footprint', _cacheSize)),
                   const SizedBox(width: 8),
                   Expanded(child: _stat('Cached Pairs', '34 Pairs')),
                 ],
@@ -148,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: double.infinity,
                 height: 40,
                 child: OutlinedButton.icon(
-                  onPressed: () => _confirmClear(context),
+                  onPressed: _confirmClear,
                   icon: const Icon(Icons.delete_outline_rounded, size: 16),
                   label: const Text(
                     'Clear Cache & Reset Room DB',
@@ -463,8 +485,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     ),
   );
-  void _confirmClear(BuildContext context) {
-    showDialog<void>(
+  Future<void> _confirmClear() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear local cache?'),
@@ -473,15 +495,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Clear', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _cacheSize = '0 KB');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cache cleared successfully')),
     );
   }
 }
