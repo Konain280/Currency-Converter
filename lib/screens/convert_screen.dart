@@ -1,36 +1,117 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_colors.dart';
 import '../widgets/spark_painter.dart';
 
 class ConvertScreen extends StatefulWidget {
   const ConvertScreen({super.key});
+
   @override
   State<ConvertScreen> createState() => _ConvertScreenState();
 }
 
 class _ConvertScreenState extends State<ConvertScreen> {
-  String amount = '1,000.00';
-  String activeCode = 'USD';
-  void key(String value) => setState(() {
-    if (value == '⌫') {
-      if (amount.isNotEmpty) {
-        amount = amount.substring(0, amount.length - 1);
+  // Mock rates are expressed as units of each currency for 1 USD.
+  static const Map<String, double> _rates = {
+    'USD': 1.0,
+    'EUR': 0.9214,
+    'PKR': 278.0,
+    'GBP': 0.7872,
+  };
+  static const Map<String, String> _flags = {
+    'USD': '🇺🇸',
+    'EUR': '🇪🇺',
+    'PKR': '🇵🇰',
+    'GBP': '🇬🇧',
+  };
+
+  String amount = '1000.00';
+  String sendCode = 'USD';
+  String receiveCode = 'EUR';
+  String lastUpdated = _formatTime(DateTime.now());
+  bool isRefreshing = false;
+
+  static String _formatTime(DateTime time) {
+    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final second = time.second.toString().padLeft(2, '0');
+    final period = time.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute:$second $period';
+  }
+
+  double get _exchangeRate => _rates[receiveCode]! / _rates[sendCode]!;
+
+  String get _receiveAmount {
+    final value = double.tryParse(amount.replaceAll(',', '')) ?? 0;
+    return (value * _exchangeRate).toStringAsFixed(2);
+  }
+
+  void _pressKey(String value) {
+    setState(() {
+      final plainAmount = amount.replaceAll(',', '');
+      if (value == '⌫') {
+        if (amount.isNotEmpty) amount = amount.substring(0, amount.length - 1);
+        return;
       }
-    } else if (value == 'Clear') {
-      amount = '';
-    } else if (value == '.') {
-      if (!amount.contains('.')) amount += '.';
-    } else if (value == 'Max') {
-      amount = '12,450.00';
-    } else if (value.startsWith('+\$')) {
-      amount =
-          ((double.tryParse(amount.replaceAll(',', '')) ?? 0) +
-                  double.parse(value.substring(2)))
-              .toStringAsFixed(2);
-    } else {
-      amount += value;
-    }
-  });
+      if (value == 'Clear') {
+        amount = '';
+        return;
+      }
+      if (value == 'Max') {
+        amount = '12450.00';
+        return;
+      }
+      if (value.startsWith('+\$')) {
+        final addition = double.tryParse(value.substring(2)) ?? 0;
+        final current = double.tryParse(plainAmount) ?? 0;
+        amount = (current + addition).toStringAsFixed(2);
+        return;
+      }
+
+      // Keep input short, allow one decimal point, and replace a leading zero.
+      if (value == '.') {
+        if (plainAmount.contains('.') || plainAmount.length >= 12) return;
+        amount = plainAmount.isEmpty ? '0.' : '$plainAmount.';
+      } else {
+        if (plainAmount.length >= 12) return;
+        if (plainAmount == '0') {
+          amount = value;
+        } else {
+          amount = '$plainAmount$value';
+        }
+      }
+    });
+  }
+
+  Future<void> _refreshRates() async {
+    if (isRefreshing) return;
+    setState(() => isRefreshing = true);
+    // Simulate a short refresh; the local mock rates remain unchanged.
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    setState(() {
+      lastUpdated = _formatTime(DateTime.now());
+      isRefreshing = false;
+    });
+  }
+
+  void _selectCurrency(bool isSend, String code) {
+    setState(() {
+      if (isSend) {
+        sendCode = code;
+      } else {
+        receiveCode = code;
+      }
+    });
+  }
+
+  void _swapCurrencies() {
+    setState(() {
+      final oldSendCode = sendCode;
+      sendCode = receiveCode;
+      receiveCode = oldSendCode;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
@@ -64,7 +145,7 @@ class _ConvertScreenState extends State<ConvertScreen> {
                       Icon(Icons.circle, size: 7, color: green),
                       SizedBox(width: 6),
                       Text(
-                        'Frankfurter API · Synced',
+                        'Mock rates',
                         style: TextStyle(
                           fontSize: 10,
                           color: green,
@@ -75,8 +156,15 @@ class _ConvertScreenState extends State<ConvertScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.refresh_rounded, color: muted),
+                  onPressed: isRefreshing ? null : _refreshRates,
+                  tooltip: 'Refresh mock rates',
+                  icon: isRefreshing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded, color: muted),
                 ),
                 const CircleAvatar(
                   radius: 17,
@@ -85,29 +173,37 @@ class _ConvertScreenState extends State<ConvertScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Last updated: $lastUpdated',
+                style: const TextStyle(fontSize: 10, color: muted),
+              ),
+            ),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
                 color: const Color(0xFFEAF2F2),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.account_balance_wallet_outlined,
                     size: 18,
                     color: green,
                   ),
-                  SizedBox(width: 9),
-                  Text(
+                  const SizedBox(width: 9),
+                  const Text(
                     'Base currency',
                     style: TextStyle(color: muted, fontSize: 13),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   Text(
-                    'Base: USD (\$)',
-                    style: TextStyle(
+                    'Base: $sendCode',
+                    style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       color: ink,
                       fontSize: 13,
@@ -119,11 +215,10 @@ class _ConvertScreenState extends State<ConvertScreen> {
             const SizedBox(height: 15),
             _currencyCard(
               title: 'YOU SEND',
-              code: activeCode,
-              flag: '🇺🇸',
+              code: sendCode,
               amount: amount,
               showBalance: true,
-              onCurrency: (v) => setState(() => activeCode = v),
+              onCurrency: (code) => _selectCurrency(true, code),
             ),
             const SizedBox(height: 10),
             Center(
@@ -142,9 +237,9 @@ class _ConvertScreenState extends State<ConvertScreen> {
                       color: green,
                     ),
                     const SizedBox(width: 7),
-                    const Text(
-                      '1 USD = 0.9214 EUR',
-                      style: TextStyle(
+                    Text(
+                      '1 $sendCode = ${_exchangeRate.toStringAsFixed(4)} $receiveCode',
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: ink,
@@ -152,9 +247,7 @@ class _ConvertScreenState extends State<ConvertScreen> {
                     ),
                     const SizedBox(width: 10),
                     InkWell(
-                      onTap: () => setState(
-                        () => activeCode = activeCode == 'USD' ? 'EUR' : 'USD',
-                      ),
+                      onTap: _swapCurrencies,
                       borderRadius: BorderRadius.circular(20),
                       child: const CircleAvatar(
                         radius: 15,
@@ -173,11 +266,10 @@ class _ConvertScreenState extends State<ConvertScreen> {
             const SizedBox(height: 10),
             _currencyCard(
               title: 'THEY RECEIVE',
-              code: 'EUR',
-              flag: '🇪🇺',
-              amount: '921.40',
+              code: receiveCode,
+              amount: _receiveAmount,
               showBalance: false,
-              onCurrency: (_) {},
+              onCurrency: (code) => _selectCurrency(false, code),
               instant: true,
             ),
             const SizedBox(height: 13),
@@ -186,18 +278,18 @@ class _ConvertScreenState extends State<ConvertScreen> {
               child: Row(
                 children: ['+\$10', '+\$50', '+\$100', '+\$500', 'Max']
                     .map(
-                      (v) => Padding(
+                      (value) => Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ActionChip(
                           label: Text(
-                            v,
+                            value,
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               color: ink,
                               fontSize: 12,
                             ),
                           ),
-                          onPressed: () => key(v),
+                          onPressed: () => _pressKey(value),
                           backgroundColor: Colors.white,
                           side: BorderSide(color: Colors.grey.shade200),
                           shape: RoundedRectangleBorder(
@@ -222,7 +314,6 @@ class _ConvertScreenState extends State<ConvertScreen> {
   Widget _currencyCard({
     required String title,
     required String code,
-    required String flag,
     required String amount,
     required bool showBalance,
     required ValueChanged<String> onCurrency,
@@ -269,8 +360,16 @@ class _ConvertScreenState extends State<ConvertScreen> {
           const SizedBox(height: 11),
           Row(
             children: [
-              InkWell(
-                onTap: () => onCurrency(code == 'USD' ? 'EUR' : 'USD'),
+              PopupMenuButton<String>(
+                onSelected: onCurrency,
+                itemBuilder: (context) => _rates.keys
+                    .map(
+                      (currency) => PopupMenuItem(
+                        value: currency,
+                        child: Text('${_flags[currency]}  $currency'),
+                      ),
+                    )
+                    .toList(),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -282,7 +381,10 @@ class _ConvertScreenState extends State<ConvertScreen> {
                   ),
                   child: Row(
                     children: [
-                      Text(flag, style: const TextStyle(fontSize: 20)),
+                      Text(
+                        _flags[code] ?? '💱',
+                        style: const TextStyle(fontSize: 20),
+                      ),
                       const SizedBox(width: 7),
                       Text(
                         code,
@@ -347,23 +449,16 @@ class _ConvertScreenState extends State<ConvertScreen> {
           Row(
             children: [
               const Text(
-                '24h Market Trend',
+                'Exchange rate',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE7F5EF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  '+0.32%',
-                  style: TextStyle(
-                    color: green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Text(
+                '${_exchangeRate.toStringAsFixed(4)} $receiveCode',
+                style: const TextStyle(
+                  color: green,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -375,16 +470,16 @@ class _ConvertScreenState extends State<ConvertScreen> {
             child: CustomPaint(painter: SparkPainter()),
           ),
           const SizedBox(height: 8),
-          const Row(
+          Row(
             children: [
-              Text(
-                'Mid-Market Rate',
+              const Text(
+                'Mock mid-market rate',
                 style: TextStyle(color: muted, fontSize: 10),
               ),
-              Spacer(),
+              const Spacer(),
               Text(
-                'Updated just now',
-                style: TextStyle(color: muted, fontSize: 10),
+                'Updated $lastUpdated',
+                style: const TextStyle(color: muted, fontSize: 10),
               ),
             ],
           ),
@@ -406,7 +501,7 @@ class _ConvertScreenState extends State<ConvertScreen> {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () => key('Clear'),
+                onPressed: () => _pressKey('Clear'),
                 child: const Text('Clear', style: TextStyle(fontSize: 12)),
               ),
             ],
@@ -420,13 +515,13 @@ class _ConvertScreenState extends State<ConvertScreen> {
             Row(
               children: row
                   .map(
-                    (v) => Expanded(
+                    (value) => Expanded(
                       child: Padding(
                         padding: const EdgeInsets.all(3),
                         child: SizedBox(
                           height: 37,
                           child: OutlinedButton(
-                            onPressed: () => key(v),
+                            onPressed: () => _pressKey(value),
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: Colors.grey.shade200),
                               shape: RoundedRectangleBorder(
@@ -434,10 +529,10 @@ class _ConvertScreenState extends State<ConvertScreen> {
                               ),
                               padding: EdgeInsets.zero,
                             ),
-                            child: v == '⌫'
+                            child: value == '⌫'
                                 ? const Icon(Icons.backspace_outlined, size: 17)
                                 : Text(
-                                    v,
+                                    value,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 15,
